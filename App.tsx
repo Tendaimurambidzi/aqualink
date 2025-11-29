@@ -15,6 +15,8 @@ import {
   Image,
   useWindowDimensions,
   Modal,
+  ScrollView,
+  Share,
 } from 'react-native';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
 import {NavigationContainer} from '@react-navigation/native';
@@ -125,6 +127,7 @@ function FeedScreen({navigation, route}: any) {
   const [activePostForComment, setActivePostForComment] = useState<{pageIdx: number; postId: number} | null>(null);
   const feedListRef = useRef<FlatList<Post[]> | null>(null);
   const {width} = useWindowDimensions();
+  const [activeTab, setActiveTab] = useState('Tide');
 
   useEffect(() => {
     if (route.params?.newPost) {
@@ -171,6 +174,24 @@ function FeedScreen({navigation, route}: any) {
     );
     setCommentText('');
     setActivePostForComment(null);
+  };
+
+  const handleShare = async () => {
+    try {
+      await Share.share({
+        message: 'Check out Aqualink! A great new app to connect and share waves. #Aqualink',
+        url: 'https://aqualink.example.com', // Replace with your app's actual URL
+        title: 'Join me on Aqualink!',
+      });
+    } catch (error: any) {
+      console.error('Error sharing:', error.message);
+    }
+  };
+
+  const handleNavPress = (tabName: string, screen?: string, action?: () => void) => {
+    setActiveTab(tabName);
+    if (screen) navigation.navigate(screen, tabName === 'CreatePost' ? {currentUser} : {});
+    if (action) action();
   };
 
   const renderPost = (pageIdx: number) => ({item: post}: {item: Post}) => (
@@ -264,35 +285,51 @@ function FeedScreen({navigation, route}: any) {
         </SafeAreaProvider>
       </Modal>
 
-      <View style={styles.bottomNav}>
-        <TouchableOpacity style={styles.navItem}>
-          <Text style={[styles.navIcon, {color: '#1877f2'}]}>⌂</Text>
-          <Text style={[styles.navText, styles.navTextActive]}>Tide</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Search')}>
-          <Text style={styles.navIcon}>🔎</Text>
-          <Text style={styles.navText}>Scan</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('CreatePost', {currentUser})}>
-          <Text style={styles.navIcon}>🌊</Text>
-          <Text style={styles.navText}>Cast</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Notifications')}>
-          <Text style={styles.navIcon}>🔔</Text>
-          <Text style={styles.navText}>Activity</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Profile')}>
-          <Text style={styles.navIcon}>⚓</Text>
-          <Text style={styles.navText}>Harbour</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => {}}>
-          <Text style={styles.navIcon}>📡</Text>
-          <Text style={styles.navText}>Share</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Settings')}>
-          <Text style={styles.navIcon}>⚙️</Text>
-          <Text style={styles.navText}>Bridge</Text>
-        </TouchableOpacity>
+      <View style={styles.bottomNavContainer}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.bottomNav}>
+          <TouchableOpacity
+            style={[styles.navItem, activeTab === 'Tide' && styles.navItemActive]}
+            onPress={() => handleNavPress('Tide', 'Feed')}>
+            <Text style={[styles.navIcon, activeTab === 'Tide' && styles.navIconActive]}>🗼</Text>
+            <Text style={[styles.navText, activeTab === 'Tide' && styles.navTextActive]}>Tide</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.navItem, activeTab === 'Scan' && styles.navItemActive]}
+            onPress={() => handleNavPress('Scan', 'Search')}>
+            <Text style={[styles.navIcon, activeTab === 'Scan' && styles.navIconActive]}>🔭</Text>
+            <Text style={[styles.navText, activeTab === 'Scan' && styles.navTextActive]}>Scan</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.navItem, activeTab === 'Cast' && styles.navItemActive]}
+            onPress={() => handleNavPress('Cast', 'CreatePost')}>
+            <Text style={[styles.navIcon, activeTab === 'Cast' && styles.navIconActive]}>🌊</Text>
+            <Text style={[styles.navText, activeTab === 'Cast' && styles.navTextActive]}>Cast</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.navItem, activeTab === 'Activity' && styles.navItemActive]}
+            onPress={() => handleNavPress('Activity', 'Notifications')}>
+            <Text style={[styles.navIcon, activeTab === 'Activity' && styles.navIconActive]}>🔔</Text>
+            <Text style={[styles.navText, activeTab === 'Activity' && styles.navTextActive]}>Activity</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.navItem, activeTab === 'Harbour' && styles.navItemActive]}
+            onPress={() => handleNavPress('Harbour', 'Profile')}>
+            <Text style={[styles.navIcon, activeTab === 'Harbour' && styles.navIconActive]}>⚓</Text>
+            <Text style={[styles.navText, activeTab === 'Harbour' && styles.navTextActive]}>Harbour</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.navItem, activeTab === 'Casta wave' && styles.navItemActive]}
+            onPress={() => handleNavPress('Casta wave', undefined, handleShare)}>
+            <Text style={[styles.navIcon, activeTab === 'Casta wave' && styles.navIconActive]}>📡</Text>
+            <Text style={[styles.navText, activeTab === 'Casta wave' && styles.navTextActive]}>Casta wave</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.navItem, activeTab === 'Bridge' && styles.navItemActive]}
+            onPress={() => handleNavPress('Bridge', 'Settings')}>
+            <Text style={[styles.navIcon, activeTab === 'Bridge' && styles.navIconActive]}>⚙️</Text>
+            <Text style={[styles.navText, activeTab === 'Bridge' && styles.navTextActive]}>Bridge</Text>
+          </TouchableOpacity>
+        </ScrollView>
       </View>
     </View>
   );
@@ -515,32 +552,43 @@ const styles = StyleSheet.create({
     color: '#333',
     paddingVertical: 8,
   },
-  bottomNav: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
+  bottomNavContainer: {
     backgroundColor: '#fff',
     borderTopWidth: 1,
     borderTopColor: '#e0e0e0',
   },
+  bottomNav: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+  },
   navItem: {
     alignItems: 'center',
     gap: 2,
-    flex: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    minWidth: 70,
+    borderRadius: 16,
+  },
+  navItemActive: {
+    backgroundColor: '#1877f2',
   },
   navIcon: {
     fontSize: 24,
     color: '#65676b',
   },
+  navIconActive: {
+    color: '#fff',
+  },
   navText: {
     fontSize: 11,
     color: '#65676b',
+    textAlign: 'center',
   },
   navTextActive: {
     color: '#1877f2',
-    fontWeight: 'bold',
+    color: '#fff',
   },
   postInput: {
     width: '80%',
