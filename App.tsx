@@ -1,29 +1,26 @@
 import 'react-native-gesture-handler';
-import DocumentPicker, {DocumentPickerResponse} from 'react-native-document-picker';
-/**
- * Simplified feed app with horizontal paged feeds and comment modal.
- */
-import React, {useRef, useState, useEffect} from 'react';
+import React, {useEffect, useRef, useState} from 'react';
 import {
-  StatusBar,
-  StyleSheet,
-  useColorScheme,
-  View,
-  Text,
+  ActivityIndicator,
   Button,
-  TextInput,
-  TouchableOpacity,
   FlatList,
   Image,
-  useWindowDimensions,
   Modal,
   ScrollView,
   Share,
-  ActivityIndicator,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+  useColorScheme,
 } from 'react-native';
-import {SafeAreaProvider} from 'react-native-safe-area-context';
 import {NavigationContainer} from '@react-navigation/native';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
+import {SafeAreaProvider} from 'react-native-safe-area-context';
+import DocumentPicker, {DocumentPickerResponse} from 'react-native-document-picker';
+import Video from 'react-native-video';
 
 type Post = {
   id: number;
@@ -39,14 +36,6 @@ type Post = {
 };
 
 const Stack = createNativeStackNavigator();
-
-
-// Firebase is auto-initialized by @react-native-firebase/app using google-services.json
-// Firestore and Storage are accessed via their respective packages
-
-// Example usage:
-// const db = firestore();
-// const storageRef = storage();
 
 function App() {
   const isDarkMode = useColorScheme() === 'dark';
@@ -98,90 +87,46 @@ function FeedScreen({navigation, route}: any) {
     Kate: 'https://randomuser.me/api/portraits/women/11.jpg',
   };
 
-  // Let's assume 'Grace' is our logged-in user for this session.
   const currentUser = {
     name: 'Grace',
     avatar: avatars['Grace'],
   };
 
-  const feedPages: Post[][] = [
-    [
-      {id: 1, user: 'Alice', content: 'Just joined Aqualink! Excited to connect with everyone.', likes: 2, comments: ['Welcome Alice!'], liked: false},
-      {id: 2, user: 'Bob', content: 'What a beautiful day to share some photos!', likes: 5, comments: ['Nice!', 'Show us more!'], liked: false},
-      {id: 3, user: 'Carol', content: 'Loving the new features on Aqualink!', likes: 3, comments: ['Me too!'], liked: false},
-    ],
-    [
-      {id: 1, user: 'Dave', content: 'Anyone up for a meetup this weekend?', likes: 1, comments: ['I am!'], liked: false},
-      {id: 2, user: 'Eve', content: 'Check out my latest blog post!', likes: 4, comments: ['Great read!'], liked: false},
-      {id: 3, user: 'Frank', content: 'Just finished a marathon!', likes: 6, comments: ['Congrats!'], liked: false},
-    ],
-    [
-      {id: 1, user: 'Grace', content: 'Aqualink is the best!', likes: 7, comments: ['Absolutely!'], liked: false},
-      {id: 2, user: 'Henry', content: 'Looking for book recommendations.', likes: 2, comments: ['Try "1984"!'], liked: false},
-      {id: 3, user: 'Ivy', content: 'Just adopted a puppy!', likes: 8, comments: ['So cute!'], liked: false},
-    ],
-    [
-      {id: 1, user: 'Jack', content: 'Who wants to play chess?', likes: 3, comments: ['I do!'], liked: false},
-      {id: 2, user: 'Kate', content: 'Started a new job today!', likes: 5, comments: ['Congrats!'], liked: false},
-      {id: 3, user: 'Alice', content: 'Enjoying a sunny day at the park.', likes: 2, comments: ['Nice!'], liked: false},
-    ],
-    [
-      {id: 1, user: 'Bob', content: 'Back to sharing photos!', likes: 5, comments: [], liked: false},
-      {id: 2, user: 'Carol', content: 'The features keep getting better.', likes: 4, comments: [], liked: false},
-      {id: 3, user: 'Dave', content: 'Meetup was a success!', likes: 9, comments: [], liked: false},
-    ],
-    [
-      {id: 1, user: 'Eve', content: 'New blog post is live!', likes: 6, comments: [], liked: false},
-      {id: 2, user: 'Frank', content: 'Training for the next marathon.', likes: 8, comments: [], liked: false},
-      {id: 3, user: 'Grace', content: 'Still the best app.', likes: 10, comments: [], liked: false},
-    ],
+  const initialPosts: Post[] = [
+    {id: 1, user: 'Alice', content: 'Just joined Aqualink! Excited to connect with everyone.', likes: 2, comments: ['Welcome Alice!'], liked: false},
+    {id: 2, user: 'Bob', content: 'What a beautiful day to share some photos!', likes: 5, comments: ['Nice!', 'Show us more!'], liked: false},
+    {id: 3, user: 'Carol', content: 'Loving the new features on Aqualink!', likes: 3, comments: ['Me too!'], liked: false},
   ];
 
-  const [pages, setPages] = useState<Post[][]>(feedPages);
+  const [posts, setPosts] = useState<Post[]>(initialPosts);
   const [commentText, setCommentText] = useState('');
-  const [activePostForComment, setActivePostForComment] = useState<{pageIdx: number; postId: number} | null>(null);
-  const feedListRef = useRef<FlatList<Post[]> | null>(null);
-  const {width} = useWindowDimensions();
+  const [activePostForComment, setActivePostForComment] = useState<{postId: number} | null>(null);
   const [activeTab, setActiveTab] = useState('Tide');
 
   useEffect(() => {
     if (route.params?.newPost) {
       const {newPost} = route.params;
-      setPages(prevPages => {
-        const newPages = [...prevPages];
-        if (!avatars[newPost.user]) {
-          avatars[newPost.user] = avatars['Grace'];
-        }
-        newPages[0] = [newPost, ...newPages[0]];
-        return newPages;
-      });
+      setPosts(prev => [newPost, ...prev]);
+      if (!avatars[newPost.user]) {
+        avatars[newPost.user] = avatars['Grace'];
+      }
       navigation.setParams({newPost: undefined});
-      feedListRef.current?.scrollToIndex({index: 0, animated: true});
     }
   }, [route.params?.newPost, navigation]);
 
-
-  const handleLike = (pageIdx: number, postId: number) => {
-    setPages(prev =>
-      prev.map((posts, idx) =>
-        idx === pageIdx
-          ? posts.map(p =>
-              p.id === postId ? {...p, likes: p.liked ? p.likes - 1 : p.likes + 1, liked: !p.liked} : p,
-            )
-          : posts,
+  const handleLike = (postId: number) => {
+    setPosts(prev =>
+      prev.map(p =>
+        p.id === postId ? {...p, likes: p.liked ? p.likes - 1 : p.likes + 1, liked: !p.liked} : p,
       ),
     );
   };
 
   const handleComment = () => {
     if (!activePostForComment || commentText.trim() === '') return;
-    const {pageIdx, postId} = activePostForComment;
-    setPages(prev =>
-      prev.map((posts, idx) =>
-        idx === pageIdx
-          ? posts.map(p => (p.id === postId ? {...p, comments: [...p.comments, commentText]} : p))
-          : posts,
-      ),
+    const {postId} = activePostForComment;
+    setPosts(prev =>
+      prev.map(p => (p.id === postId ? {...p, comments: [...p.comments, commentText]} : p)),
     );
     setCommentText('');
     setActivePostForComment(null);
@@ -191,7 +136,7 @@ function FeedScreen({navigation, route}: any) {
     try {
       await Share.share({
         message: 'Check out Aqualink! A great new app to connect and share waves. #Aqualink',
-        url: 'https://aqualink.example.com', // Replace with your app's actual URL
+        url: 'https://aqualink.example.com',
         title: 'Join me on Aqualink!',
       });
     } catch (error: any) {
@@ -205,7 +150,7 @@ function FeedScreen({navigation, route}: any) {
     if (action) action();
   };
 
-  const renderPost = (pageIdx: number) => ({item: post}: {item: Post}) => (
+  const renderPost = ({item: post}: {item: Post}) => (
     <TouchableOpacity
       activeOpacity={0.9}
       onPress={() =>
@@ -221,19 +166,13 @@ function FeedScreen({navigation, route}: any) {
             <Text style={[styles.username, styles.textWhite]}>{post.user}</Text>
           </View>
           <Text style={[styles.content, styles.textWhite]}>{post.content}</Text>
-          {post.imageUrl && (
-            <Image source={{uri: post.imageUrl}} style={styles.postImage} />
-          )}
+          {post.imageUrl && <Image source={{uri: post.imageUrl}} style={styles.postImage} />}
           {post.videoUrl && (
-            <View style={styles.videoContainer}>
-              <Image source={{uri: post.videoUrl}} style={styles.postImage} />
-              <View style={styles.playButtonOverlay} />
-              <Text style={styles.playButtonIcon}>▶</Text>
-            </View>
+            <Video source={{uri: post.videoUrl}} style={styles.postImage} controls resizeMode="cover" paused />
           )}
           {post.documentUrl && (
             <TouchableOpacity style={styles.documentContainer}>
-              <Text style={styles.documentIcon}>📄</Text>
+              <Text style={styles.documentIcon}>Doc</Text>
               <Text style={styles.documentName} numberOfLines={1}>
                 {post.documentName || 'Attached Document'}
               </Text>
@@ -242,14 +181,14 @@ function FeedScreen({navigation, route}: any) {
         </View>
         <View style={styles.cardBottomSection}>
           <View style={styles.actionsRow}>
-            <TouchableOpacity onPress={() => handleLike(pageIdx, post.id)} style={styles.actionBtn}>
-              <Text style={[styles.actionIcon, {color: post.liked ? '#1877f2' : '#65676b'}]}>💧</Text>
+            <TouchableOpacity onPress={() => handleLike(post.id)} style={styles.actionBtn}>
+              <Text style={[styles.actionIcon, {color: post.liked ? '#1877f2' : '#65676b'}]}>❤</Text>
               <Text style={styles.actionText}>{post.likes} Splashes</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              onPress={() => setActivePostForComment({pageIdx, postId: post.id})}
+              onPress={() => setActivePostForComment({postId: post.id})}
               style={styles.actionBtn}>
-              <Text style={styles.actionIcon}>📢</Text>
+              <Text style={styles.actionIcon}>💬</Text>
               <Text style={styles.actionText}>{post.comments.length} Echoes</Text>
             </TouchableOpacity>
           </View>
@@ -258,30 +197,15 @@ function FeedScreen({navigation, route}: any) {
     </TouchableOpacity>
   );
 
-  const renderFeedPage = ({item: posts, index: pageIdx}: {item: Post[]; index: number}) => (
-    <View style={{width, flex: 1, paddingTop: 8}}>
+  return (
+    <View style={styles.feedScreen}>
       <FlatList
         data={posts}
-        renderItem={renderPost(pageIdx)}
+        renderItem={renderPost}
         keyExtractor={item => item.id.toString()}
         contentContainerStyle={{flexGrow: 1, justifyContent: 'space-between', paddingVertical: 8}}
         ItemSeparatorComponent={() => <View style={{height: 12}} />}
         showsVerticalScrollIndicator={false}
-        ListFooterComponent={<View style={{height: 8}} />}
-      />
-    </View>
-  );
-
-  return (
-    <View style={styles.feedScreen}>
-      <FlatList
-        ref={feedListRef}
-        data={pages}
-        renderItem={renderFeedPage}
-        keyExtractor={(_, idx) => idx.toString()}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
       />
 
       <Modal
@@ -298,7 +222,7 @@ function FeedScreen({navigation, route}: any) {
             <FlatList
               data={
                 activePostForComment
-                  ? pages[activePostForComment.pageIdx].find(p => p.id === activePostForComment.postId)?.comments || []
+                  ? posts.find(p => p.id === activePostForComment.postId)?.comments || []
                   : []
               }
               renderItem={({item}) => <Text style={styles.commentText}>- {item}</Text>}
@@ -323,19 +247,19 @@ function FeedScreen({navigation, route}: any) {
           <TouchableOpacity
             style={[styles.navItem, activeTab === 'Tide' && styles.navItemActive]}
             onPress={() => handleNavPress('Tide', 'Feed')}>
-            <Text style={[styles.navIcon, activeTab === 'Tide' && styles.navIconActive]}>🗼</Text>
+            <Text style={[styles.navIcon, activeTab === 'Tide' && styles.navIconActive]}>🌊</Text>
             <Text style={[styles.navText, activeTab === 'Tide' && styles.navTextActive]}>Tide</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.navItem, activeTab === 'Scan' && styles.navItemActive]}
             onPress={() => handleNavPress('Scan', 'Search')}>
-            <Text style={[styles.navIcon, activeTab === 'Scan' && styles.navIconActive]}>🔭</Text>
+            <Text style={[styles.navIcon, activeTab === 'Scan' && styles.navIconActive]}>🔎</Text>
             <Text style={[styles.navText, activeTab === 'Scan' && styles.navTextActive]}>Scan</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.navItem, activeTab === 'Cast' && styles.navItemActive]}
             onPress={() => handleNavPress('Cast', 'CreatePost')}>
-            <Text style={[styles.navIcon, activeTab === 'Cast' && styles.navIconActive]}>🌊</Text>
+            <Text style={[styles.navIcon, activeTab === 'Cast' && styles.navIconActive]}>📤</Text>
             <Text style={[styles.navText, activeTab === 'Cast' && styles.navTextActive]}>Cast</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -353,13 +277,13 @@ function FeedScreen({navigation, route}: any) {
           <TouchableOpacity
             style={[styles.navItem, activeTab === 'Casta wave' && styles.navItemActive]}
             onPress={() => handleNavPress('Casta wave', undefined, handleShare)}>
-            <Text style={[styles.navIcon, activeTab === 'Casta wave' && styles.navIconActive]}>📡</Text>
+            <Text style={[styles.navIcon, activeTab === 'Casta wave' && styles.navIconActive]}>🌐</Text>
             <Text style={[styles.navText, activeTab === 'Casta wave' && styles.navTextActive]}>Casta wave</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.navItem, activeTab === 'Bridge' && styles.navItemActive]}
             onPress={() => handleNavPress('Bridge', 'Settings')}>
-            <Text style={[styles.navIcon, activeTab === 'Bridge' && styles.navIconActive]}>⚙️</Text>
+            <Text style={[styles.navIcon, activeTab === 'Bridge' && styles.navIconActive]}>⚙</Text>
             <Text style={[styles.navText, activeTab === 'Bridge' && styles.navTextActive]}>Bridge</Text>
           </TouchableOpacity>
         </ScrollView>
@@ -417,6 +341,15 @@ function ProfileScreen({navigation}: any) {
   );
 }
 
+function MessagesScreen({navigation}: any) {
+  return (
+    <View style={styles.centerScreen}>
+      <Text>Messages Screen</Text>
+      <Button title="Go back" onPress={() => navigation.goBack()} />
+    </View>
+  );
+}
+
 function CreatePostScreen({navigation, route}: any) {
   const currentUser =
     route?.params?.currentUser || {
@@ -430,10 +363,7 @@ function CreatePostScreen({navigation, route}: any) {
   const UPLOAD_ENDPOINT = 'https://file.io';
 
   const uploadAttachment = async (file: DocumentPickerResponse) => {
-    // Fail fast if network is blocked or slow; fallback to local URI.
-    const timeout = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Upload timeout')), 12000),
-    );
+    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Upload timeout')), 12000));
 
     const formData = new FormData();
     formData.append('file', {
@@ -558,15 +488,6 @@ function CreatePostScreen({navigation, route}: any) {
   );
 }
 
-function MessagesScreen({navigation}: any) {
-  return (
-    <View style={styles.centerScreen}>
-      <Text>Messages Screen</Text>
-      <Button title="Go back" onPress={() => navigation.goBack()} />
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   feedScreen: {
     flex: 1,
@@ -585,6 +506,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     marginHorizontal: 16,
     borderRadius: 12,
+    padding: 0,
     elevation: 3,
     shadowColor: '#000',
     shadowOffset: {width: 0, height: 2},
@@ -626,7 +548,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   documentIcon: {
-    fontSize: 24,
+    fontSize: 16,
     marginRight: 10,
   },
   documentName: {
@@ -640,28 +562,8 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginTop: 8,
   },
-  videoContainer: {
-    width: '100%',
-    height: 200,
-    marginTop: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  playButtonOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-    borderRadius: 8,
-  },
-  playButtonIcon: {
-    position: 'absolute',
-    fontSize: 48,
-    color: 'rgba(255, 255, 255, 0.8)',
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
-    textShadowOffset: {width: -1, height: 1},
-    textShadowRadius: 10,
-  },
   cardTopSection: {
-    backgroundColor: '#dc3545',
+    backgroundColor: '#1877f2',
     padding: 16,
   },
   cardBottomSection: {
@@ -761,7 +663,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   navTextActive: {
-    color: '#1877f2',
     color: '#fff',
   },
   postInput: {
