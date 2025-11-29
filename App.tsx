@@ -415,7 +415,11 @@ function ProfileScreen({navigation}: any) {
 }
 
 function CreatePostScreen({navigation, route}: any) {
-  const {currentUser} = route.params;
+  const currentUser =
+    route?.params?.currentUser || {
+      name: 'You',
+      avatar: 'https://randomuser.me/api/portraits/women/7.jpg',
+    };
   const [postContent, setPostContent] = useState('');
   const MAX_POST_LENGTH = 280;
 
@@ -424,7 +428,7 @@ function CreatePostScreen({navigation, route}: any) {
 
     const newPost: Post = {
       id: Date.now(), // Use timestamp for a unique ID
-      user: currentUser.name,
+      user: currentUser.name || 'You',
       content: postContent,
       likes: 0,
       comments: [],

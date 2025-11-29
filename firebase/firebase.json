@@ -1,0 +1,7 @@
+// Firebase configuration for deployment
+{
+  "functions": {
+    "source": ".",
+    "runtime": "nodejs20"
+  }
+}
