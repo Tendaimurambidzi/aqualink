@@ -108,6 +108,7 @@ function FeedScreen({navigation, route}: any) {
   const videoCarouselRef = useRef<FlatList<Post>>(null);
   const videoPosts = posts.filter(p => p.videoUrl);
   const [activeVideoIndex, setActiveVideoIndex] = useState(0);
+  const [fullscreenVideo, setFullscreenVideo] = useState<string | null>(null);
 
   // Load cached posts on startup
   useEffect(() => {
@@ -213,7 +214,15 @@ function FeedScreen({navigation, route}: any) {
             <Text style={[styles.username, styles.textWhite]}>{item.user}</Text>
           </View>
           <Text style={[styles.content, styles.textWhite]}>{item.content}</Text>
-          <Video source={{uri: item.videoUrl!}} style={styles.postVideo} controls resizeMode="cover" paused />
+          <TouchableOpacity onPress={() => setFullscreenVideo(item.videoUrl!)}>
+            <Image
+              source={{uri: item.imageUrl || 'https://img.icons8.com/ios-filled/100/000000/video.png'}}
+              style={[styles.postVideo, {resizeMode: 'cover', backgroundColor: '#000'}]}
+            />
+            <View style={{position: 'absolute', top: '40%', left: '45%'}}>
+              <Text style={{fontSize: 40, color: '#fff'}}>▶️</Text>
+            </View>
+          </TouchableOpacity>
         </View>
       </View>
     </View>
@@ -237,13 +246,15 @@ function FeedScreen({navigation, route}: any) {
           <Text style={[styles.content, styles.textWhite]}>{post.content}</Text>
           {post.imageUrl && <Image source={{uri: post.imageUrl}} style={styles.postImage} />}
           {post.videoUrl && (
-            <Video
-              source={{uri: post.videoUrl}}
-              style={styles.postVideo}
-              controls
-              resizeMode="cover"
-              paused
-            />
+            <TouchableOpacity onPress={() => setFullscreenVideo(post.videoUrl!)}>
+              <Image
+                source={{uri: post.imageUrl || 'https://img.icons8.com/ios-filled/100/000000/video.png'}}
+                style={[styles.postVideo, {resizeMode: 'cover', backgroundColor: '#000'}]}
+              />
+              <View style={{position: 'absolute', top: '40%', left: '45%'}}>
+                <Text style={{fontSize: 40, color: '#fff'}}>▶️</Text>
+              </View>
+            </TouchableOpacity>
           )}
           {post.documentUrl && (
             <TouchableOpacity style={styles.documentContainer}>
@@ -299,6 +310,7 @@ function FeedScreen({navigation, route}: any) {
         </View>
       )}
 
+
       <FlatList
         data={posts}
         renderItem={renderPost}
@@ -306,7 +318,32 @@ function FeedScreen({navigation, route}: any) {
         contentContainerStyle={{flexGrow: 1, justifyContent: 'space-between', paddingVertical: 8}}
         ItemSeparatorComponent={() => <View style={{height: 12}} />}
         showsVerticalScrollIndicator={false}
+        inverted
       />
+
+      {/* Fullscreen Video Modal */}
+      <Modal
+        visible={!!fullscreenVideo}
+        animationType="slide"
+        onRequestClose={() => setFullscreenVideo(null)}
+        transparent={false}
+      >
+        <View style={{flex: 1, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center'}}>
+          <Video
+            source={{uri: fullscreenVideo || ''}}
+            style={{width: '100%', height: 400, backgroundColor: '#000'}}
+            controls
+            resizeMode="contain"
+            paused={false}
+          />
+          <TouchableOpacity
+            onPress={() => setFullscreenVideo(null)}
+            style={{position: 'absolute', top: 40, left: 20, backgroundColor: 'rgba(0,0,0,0.5)', padding: 10, borderRadius: 20}}
+          >
+            <Text style={{color: '#fff', fontSize: 24}}>← Back</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
 
       <Modal
         animationType="slide"
@@ -658,7 +695,7 @@ const styles = StyleSheet.create({
   },
   postVideo: {
     width: '100%',
-    height: 440,
+    height: 280,
     borderRadius: 8,
     marginTop: 8,
     backgroundColor: '#000',
