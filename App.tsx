@@ -29,6 +29,8 @@ type Post = {
   likes: number;
   comments: string[];
   liked: boolean;
+  imageUrl?: string;
+  videoUrl?: string;
 };
 
 const Stack = createNativeStackNavigator();
@@ -91,9 +93,23 @@ function FeedScreen({navigation, route}: any) {
 
   const feedPages: Post[][] = [
     [
-      {id: 1, user: 'Alice', content: 'Just joined Aqualink! Excited to connect with everyone.', likes: 2, comments: ['Welcome Alice!'], liked: false},
-      {id: 2, user: 'Bob', content: 'What a beautiful day to share some photos!', likes: 5, comments: ['Nice!', 'Show us more!'], liked: false},
-      {id: 3, user: 'Carol', content: 'Loving the new features on Aqualink!', likes: 3, comments: ['Me too!'], liked: false},
+      {
+        id: 1,
+        user: 'Alice',
+        content: 'Look at this beautiful forest I visited today!',
+        likes: 12,
+        comments: ['Stunning!', 'So peaceful.'],
+        liked: false,
+        imageUrl: 'https://images.pexels.com/photos/302804/pexels-photo-302804.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
+      },
+      {
+        id: 2,
+        user: 'Bob',
+        content: 'Caught this amazing sunset on video!',
+        likes: 25, comments: ['Wow!', 'Incredible colors!'], liked: false,
+        videoUrl: 'https://images.pexels.com/photos/36744/sunset-sun-red-sky-setting-sun.jpg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
+      },
+      {id: 3, user: 'Carol', content: 'Just a regular text post here. Loving the new features on Aqualink!', likes: 3, comments: ['Me too!'], liked: false},
     ],
     [
       {id: 1, user: 'Dave', content: 'Anyone up for a meetup this weekend?', likes: 1, comments: ['I am!'], liked: false},
@@ -210,18 +226,30 @@ function FeedScreen({navigation, route}: any) {
             <Text style={[styles.username, styles.textWhite]}>{post.user}</Text>
           </View>
           <Text style={[styles.content, styles.textWhite]}>{post.content}</Text>
+          {post.imageUrl && (
+            <Image source={{uri: post.imageUrl}} style={styles.postImage} />
+          )}
+          {post.videoUrl && (
+            <View style={styles.videoContainer}>
+              <Image source={{uri: post.videoUrl}} style={styles.postImage} />
+              <View style={styles.playButtonOverlay} />
+              <Text style={styles.playButtonIcon}>▶</Text>
+            </View>
+          )}
         </View>
         <View style={styles.cardBottomSection}>
-          <TouchableOpacity onPress={() => handleLike(pageIdx, post.id)} style={styles.actionBtn}>
-            <Text style={[styles.actionIcon, {color: post.liked ? '#1877f2' : '#65676b'}]}>💧</Text>
-            <Text style={styles.actionText}>{post.likes} Splashes</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => setActivePostForComment({pageIdx, postId: post.id})}
-            style={styles.actionBtn}>
-            <Text style={styles.actionIcon}>📢</Text>
-            <Text style={styles.actionText}>{post.comments.length} Echoes</Text>
-          </TouchableOpacity>
+          <View style={styles.actionsRow}>
+            <TouchableOpacity onPress={() => handleLike(pageIdx, post.id)} style={styles.actionBtn}>
+              <Text style={[styles.actionIcon, {color: post.liked ? '#1877f2' : '#65676b'}]}>💧</Text>
+              <Text style={styles.actionText}>{post.likes} Splashes</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setActivePostForComment({pageIdx, postId: post.id})}
+              style={styles.actionBtn}>
+              <Text style={styles.actionIcon}>📢</Text>
+              <Text style={styles.actionText}>{post.comments.length} Echoes</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     </TouchableOpacity>
@@ -493,6 +521,33 @@ const styles = StyleSheet.create({
   content: {
     fontSize: 15,
     color: '#333',
+    paddingBottom: 12,
+  },
+  postImage: {
+    width: '100%',
+    height: 200,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  videoContainer: {
+    width: '100%',
+    height: 200,
+    marginTop: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  playButtonOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    borderRadius: 8,
+  },
+  playButtonIcon: {
+    position: 'absolute',
+    fontSize: 48,
+    color: 'rgba(255, 255, 255, 0.8)',
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: {width: -1, height: 1},
+    textShadowRadius: 10,
   },
   cardTopSection: {
     backgroundColor: '#dc3545',
