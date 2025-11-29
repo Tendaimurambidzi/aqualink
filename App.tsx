@@ -19,6 +19,7 @@ import {
 import {NavigationContainer} from '@react-navigation/native';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import DocumentPicker, {DocumentPickerResponse} from 'react-native-document-picker';
 import Video from 'react-native-video';
 
@@ -73,6 +74,7 @@ function LoginScreen({navigation}: any) {
 }
 
 function FeedScreen({navigation, route}: any) {
+  const STORAGE_KEY = 'aqualink_posts_v1';
   const avatars: Record<string, string> = {
     Alice: 'https://randomuser.me/api/portraits/women/1.jpg',
     Bob: 'https://randomuser.me/api/portraits/men/2.jpg',
@@ -99,9 +101,47 @@ function FeedScreen({navigation, route}: any) {
   ];
 
   const [posts, setPosts] = useState<Post[]>(initialPosts);
+  const [hydrated, setHydrated] = useState(false);
   const [commentText, setCommentText] = useState('');
   const [activePostForComment, setActivePostForComment] = useState<{postId: number} | null>(null);
   const [activeTab, setActiveTab] = useState('Tide');
+  const videoCarouselRef = useRef<FlatList<Post>>(null);
+  const videoPosts = posts.filter(p => p.videoUrl);
+  const [activeVideoIndex, setActiveVideoIndex] = useState(0);
+
+  // Load cached posts on startup
+  useEffect(() => {
+    (async () => {
+      try {
+        const stored = await AsyncStorage.getItem(STORAGE_KEY);
+        if (stored) {
+          const parsed = JSON.parse(stored) as Post[];
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setPosts(prev => {
+              const byId = new Map<string | number, Post>();
+              parsed.forEach(p => byId.set(p.id, p));
+              prev.forEach(p => {
+                if (!byId.has(p.id)) byId.set(p.id, p);
+              });
+              return Array.from(byId.values());
+            });
+          }
+        }
+      } catch (e) {
+        console.error('Failed to load cached posts:', e);
+      } finally {
+        setHydrated(true);
+      }
+    })();
+  }, []);
+
+  // Persist posts whenever they change (after hydration)
+  useEffect(() => {
+    if (!hydrated) return;
+    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(posts)).catch(err =>
+      console.error('Failed to cache posts:', err),
+    );
+  }, [posts, hydrated]);
 
   // Add new post from CreatePostScreen (instant UI update)
   useEffect(() => {
@@ -151,6 +191,34 @@ function FeedScreen({navigation, route}: any) {
     if (action) action();
   };
 
+  const handleVideoMomentum = (event: any) => {
+    const viewWidth = event.nativeEvent.layoutMeasurement.width;
+    const contentOffset = event.nativeEvent.contentOffset.x;
+    const index = Math.round(contentOffset / viewWidth);
+    setActiveVideoIndex(index);
+  };
+
+  const goToVideo = (nextIndex: number) => {
+    if (nextIndex < 0 || nextIndex >= videoPosts.length) return;
+    videoCarouselRef.current?.scrollToIndex({index: nextIndex, animated: true});
+    setActiveVideoIndex(nextIndex);
+  };
+
+  const renderVideoSlide = ({item}: {item: Post}) => (
+    <View style={{width: 320}}>
+      <View style={styles.card}>
+        <View style={styles.cardTopSection}>
+          <View style={styles.cardHeader}>
+            <Image source={{uri: avatars[item.user] || avatars['Alice']}} style={styles.avatar} />
+            <Text style={[styles.username, styles.textWhite]}>{item.user}</Text>
+          </View>
+          <Text style={[styles.content, styles.textWhite]}>{item.content}</Text>
+          <Video source={{uri: item.videoUrl!}} style={styles.postVideo} controls resizeMode="cover" paused />
+        </View>
+      </View>
+    </View>
+  );
+
   const renderPost = ({item: post}: {item: Post}) => (
     <TouchableOpacity
       activeOpacity={0.9}
@@ -189,13 +257,13 @@ function FeedScreen({navigation, route}: any) {
         <View style={styles.cardBottomSection}>
           <View style={styles.actionsRow}>
             <TouchableOpacity onPress={() => handleLike(post.id)} style={styles.actionBtn}>
-              <Text style={[styles.actionIcon, {color: post.liked ? '#1877f2' : '#65676b'}]}>❤</Text>
+              <Text style={[styles.actionIcon, {color: post.liked ? '#1877f2' : '#65676b'}]}>💦</Text>
               <Text style={styles.actionText}>{post.likes} Splashes</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => setActivePostForComment({postId: post.id})}
               style={styles.actionBtn}>
-              <Text style={styles.actionIcon}>💬</Text>
+              <Text style={styles.actionIcon}>🔊</Text>
               <Text style={styles.actionText}>{post.comments.length} Echoes</Text>
             </TouchableOpacity>
           </View>
@@ -206,6 +274,31 @@ function FeedScreen({navigation, route}: any) {
 
   return (
     <View style={styles.feedScreen}>
+      {videoPosts.length > 0 && (
+        <View style={{paddingVertical: 8}}>
+          <Text style={{paddingHorizontal: 16, fontWeight: '700', color: '#1877f2'}}>Videos</Text>
+          <FlatList
+            ref={videoCarouselRef}
+            data={videoPosts}
+            renderItem={renderVideoSlide}
+            keyExtractor={item => `video-${item.id}`}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            onMomentumScrollEnd={handleVideoMomentum}
+            contentContainerStyle={{paddingHorizontal: 16, gap: 12}}
+          />
+          <View style={{flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, marginTop: 6}}>
+            <Button title="Prev" onPress={() => goToVideo(activeVideoIndex - 1)} disabled={activeVideoIndex === 0} />
+            <Button
+              title="Next"
+              onPress={() => goToVideo(activeVideoIndex + 1)}
+              disabled={activeVideoIndex >= videoPosts.length - 1}
+            />
+          </View>
+        </View>
+      )}
+
       <FlatList
         data={posts}
         renderItem={renderPost}
@@ -254,19 +347,19 @@ function FeedScreen({navigation, route}: any) {
           <TouchableOpacity
             style={[styles.navItem, activeTab === 'Tide' && styles.navItemActive]}
             onPress={() => handleNavPress('Tide', 'Feed')}>
-            <Text style={[styles.navIcon, activeTab === 'Tide' && styles.navIconActive]}>🌊</Text>
+            <Text style={[styles.navIcon, activeTab === 'Tide' && styles.navIconActive]}>🗼</Text>
             <Text style={[styles.navText, activeTab === 'Tide' && styles.navTextActive]}>Tide</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.navItem, activeTab === 'Scan' && styles.navItemActive]}
             onPress={() => handleNavPress('Scan', 'Search')}>
-            <Text style={[styles.navIcon, activeTab === 'Scan' && styles.navIconActive]}>🔎</Text>
+            <Text style={[styles.navIcon, activeTab === 'Scan' && styles.navIconActive]}>🔭</Text>
             <Text style={[styles.navText, activeTab === 'Scan' && styles.navTextActive]}>Scan</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.navItem, activeTab === 'Cast' && styles.navItemActive]}
             onPress={() => handleNavPress('Cast', 'CreatePost')}>
-            <Text style={[styles.navIcon, activeTab === 'Cast' && styles.navIconActive]}>📤</Text>
+            <Text style={[styles.navIcon, activeTab === 'Cast' && styles.navIconActive]}>📡</Text>
             <Text style={[styles.navText, activeTab === 'Cast' && styles.navTextActive]}>Cast</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -284,7 +377,7 @@ function FeedScreen({navigation, route}: any) {
           <TouchableOpacity
             style={[styles.navItem, activeTab === 'Casta wave' && styles.navItemActive]}
             onPress={() => handleNavPress('Casta wave', undefined, handleShare)}>
-            <Text style={[styles.navIcon, activeTab === 'Casta wave' && styles.navIconActive]}>🌐</Text>
+            <Text style={[styles.navIcon, activeTab === 'Casta wave' && styles.navIconActive]}>🍾</Text>
             <Text style={[styles.navText, activeTab === 'Casta wave' && styles.navTextActive]}>Casta wave</Text>
           </TouchableOpacity>
           <TouchableOpacity
