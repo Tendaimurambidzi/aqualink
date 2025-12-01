@@ -1,5 +1,5 @@
 import 'react-native-gesture-handler';
-import React, {useEffect, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {
   ActivityIndicator,
   Button,
@@ -23,6 +23,7 @@ import {pick} from '@react-native-documents/picker';
 import storage from '@react-native-firebase/storage';
 import RNFS from 'react-native-fs';
 import Video from 'react-native-video';
+import FastImage from 'react-native-fast-image';
 
 type Post = {
   id: number;
@@ -117,13 +118,13 @@ function FeedScreen({navigation, route}: any) {
     }
   }, [route.params?.newPost, navigation]);
 
-  const handleLike = (postId: number) => {
+  const handleLike = useCallback((postId: number) => {
     setPosts(prev =>
       prev.map(p =>
         p.id === postId ? {...p, likes: p.liked ? p.likes - 1 : p.likes + 1, liked: !p.liked} : p,
       ),
     );
-  };
+  }, []);
 
   const handleComment = () => {
     if (!activePostForComment || commentText.trim() === '') return;
@@ -153,7 +154,7 @@ function FeedScreen({navigation, route}: any) {
     if (action) action();
   };
 
-  const renderPost = ({item: post}: {item: Post}) => (
+  const renderPost = useCallback(({item: post}: {item: Post}) => (
     <TouchableOpacity
       activeOpacity={0.9}
       onPress={() =>
@@ -169,7 +170,7 @@ function FeedScreen({navigation, route}: any) {
             <Text style={[styles.username, styles.textWhite]}>{post.user}</Text>
           </View>
           <Text style={[styles.content, styles.textWhite]}>{post.content}</Text>
-          {post.imageUrl && <Image source={{uri: post.imageUrl}} style={styles.postImage} />}
+          {post.imageUrl && <FastImage source={{uri: post.imageUrl}} style={styles.postImage} resizeMode={FastImage.resizeMode.cover} />}
           {post.videoUrl && (
             <Video
               source={{uri: post.videoUrl}}
@@ -204,7 +205,7 @@ function FeedScreen({navigation, route}: any) {
         </View>
       </View>
     </TouchableOpacity>
-  );
+  ), [navigation, avatars, handleLike]);
 
   return (
     <View style={styles.feedScreen}>
@@ -215,6 +216,8 @@ function FeedScreen({navigation, route}: any) {
         contentContainerStyle={{flexGrow: 1, justifyContent: 'space-between', paddingVertical: 8}}
         ItemSeparatorComponent={() => <View style={{height: 12}} />}
         showsVerticalScrollIndicator={false}
+        initialNumToRender={5}
+        windowSize={10}
       />
 
       <Modal
@@ -237,6 +240,7 @@ function FeedScreen({navigation, route}: any) {
               renderItem={({item}) => <Text style={styles.commentText}>- {item}</Text>}
               keyExtractor={(item, index) => `${item}-${index}`}
               contentContainerStyle={{padding: 16}}
+              initialNumToRender={5}
             />
             <View style={styles.commentInputRow}>
               <TextInput
