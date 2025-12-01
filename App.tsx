@@ -19,7 +19,7 @@ import {
 import {NavigationContainer} from '@react-navigation/native';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
-import DocumentPicker, {DocumentPickerResponse} from 'react-native-document-picker';
+import {pick} from '@react-native-documents/picker';
 import Video from 'react-native-video';
 
 type Post = {
@@ -364,12 +364,12 @@ function CreatePostScreen({navigation, route}: any) {
       avatar: 'https://randomuser.me/api/portraits/women/7.jpg',
     };
   const [postContent, setPostContent] = useState('');
-  const [attachment, setAttachment] = useState<DocumentPickerResponse | null>(null);
+  const [attachment, setAttachment] = useState<any>(null); // Will use image-picker for images/videos
   const [isUploading, setIsUploading] = useState(false);
   const MAX_POST_LENGTH = 280;
   // Remove file.io, use Firebase Storage
 
-  const uploadAttachment = async (file: DocumentPickerResponse) => {
+  const uploadAttachment = async (file: any) => {
     // Upload to Firebase Storage
     const ext = file.name?.split('.').pop() || 'mp4';
     const ref = storage().ref(`casts/${Date.now()}_${file.name}`);
@@ -379,14 +379,13 @@ function CreatePostScreen({navigation, route}: any) {
 
   const handleFilePick = async () => {
     try {
-      const res = await DocumentPicker.pickSingle({
-        type: [DocumentPicker.types.images, DocumentPicker.types.video, DocumentPicker.types.pdf],
+      const res = await pick({
+        type: ['image/*', 'video/*', 'application/pdf'],
       });
-      setAttachment(res);
-    } catch (err) {
-      if (DocumentPicker.isCancel(err)) {
-        return;
+      if (res && res.length > 0) {
+        setAttachment(res[0]);
       }
+    } catch (err) {
       console.error('Error picking file:', err);
     }
   };
