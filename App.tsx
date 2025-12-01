@@ -20,6 +20,8 @@ import {NavigationContainer} from '@react-navigation/native';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
 import {pick} from '@react-native-documents/picker';
+import firestore from '@react-native-firebase/firestore';
+import storage from '@react-native-firebase/storage';
 import Video from 'react-native-video';
 
 type Post = {
@@ -103,6 +105,29 @@ function FeedScreen({navigation, route}: any) {
   const [activePostForComment, setActivePostForComment] = useState<{postId: number} | null>(null);
   const [activeTab, setActiveTab] = useState('Tide');
 
+  // Load posts from Firestore
+  useEffect(() => {
+    const unsubscribe = firestore()
+      .collection('posts')
+      .orderBy('id', 'desc')
+      .onSnapshot(snapshot => {
+        const loadedPosts: Post[] = snapshot.docs.map(doc => ({
+          id: doc.data().id,
+          user: doc.data().user,
+          content: doc.data().content,
+          likes: doc.data().likes || 0,
+          comments: doc.data().comments || [],
+          liked: doc.data().liked || false,
+          imageUrl: doc.data().imageUrl,
+          videoUrl: doc.data().videoUrl,
+          documentUrl: doc.data().documentUrl,
+          documentName: doc.data().documentName,
+        }));
+        setPosts(loadedPosts);
+      });
+    return unsubscribe;
+  }, []);
+
   // Add new post from CreatePostScreen (instant UI update)
   useEffect(() => {
     if (route.params?.newPost) {
@@ -115,20 +140,32 @@ function FeedScreen({navigation, route}: any) {
     }
   }, [route.params?.newPost, navigation]);
 
-  const handleLike = (postId: number) => {
-    setPosts(prev =>
-      prev.map(p =>
-        p.id === postId ? {...p, likes: p.liked ? p.likes - 1 : p.likes + 1, liked: !p.liked} : p,
-      ),
-    );
+  const handleLike = async (postId: number) => {
+    const postRef = firestore().collection('posts').where('id', '==', postId);
+    const snapshot = await postRef.get();
+    if (!snapshot.empty) {
+      const doc = snapshot.docs[0];
+      const currentLikes = doc.data().likes || 0;
+      const currentLiked = doc.data().liked || false;
+      await doc.ref.update({
+        likes: currentLiked ? currentLikes - 1 : currentLikes + 1,
+        liked: !currentLiked,
+      });
+    }
   };
 
-  const handleComment = () => {
+  const handleComment = async () => {
     if (!activePostForComment || commentText.trim() === '') return;
     const {postId} = activePostForComment;
-    setPosts(prev =>
-      prev.map(p => (p.id === postId ? {...p, comments: [...p.comments, commentText]} : p)),
-    );
+    const postRef = firestore().collection('posts').where('id', '==', postId);
+    const snapshot = await postRef.get();
+    if (!snapshot.empty) {
+      const doc = snapshot.docs[0];
+      const currentComments = doc.data().comments || [];
+      await doc.ref.update({
+        comments: [...currentComments, commentText],
+      });
+    }
     setCommentText('');
     setActivePostForComment(null);
   };
@@ -370,11 +407,14 @@ function CreatePostScreen({navigation, route}: any) {
   // Remove file.io, use Firebase Storage
 
   const uploadAttachment = async (file: any) => {
+    console.log('Uploading attachment:', file.name, file.uri);
     // Upload to Firebase Storage
     const ext = file.name?.split('.').pop() || 'mp4';
     const ref = storage().ref(`casts/${Date.now()}_${file.name}`);
     await ref.putFile(file.uri);
-    return await ref.getDownloadURL();
+    const url = await ref.getDownloadURL();
+    console.log('Upload successful, URL:', url);
+    return url;
   };
 
   const handleFilePick = async () => {
@@ -432,6 +472,9 @@ function CreatePostScreen({navigation, route}: any) {
           }
         }
       }
+
+      // Save to Firestore
+      await firestore().collection('posts').add(newPost);
 
       navigation.navigate({name: 'Feed', params: {newPost}, merge: true});
       setPostContent('');
