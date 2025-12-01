@@ -2,14 +2,14 @@
   "project_info": {
     "project_number": "895939114566",
     "project_id": "aqualink-62c7b",
-    "storage_bucket": "aqualink-62c7b.appspot.com"
+    "storage_bucket": "aqualink-62c7b.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
         "mobilesdk_app_id": "1:895939114566:android:f487740c3d9d9ef107fc47",
         "android_client_info": {
-          "package_name": "com.tendaimuaqualink"
+          "package_name": "com.aqualink"
         }
       },
       "oauth_client": [],

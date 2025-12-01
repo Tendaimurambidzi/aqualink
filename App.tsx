@@ -21,6 +21,7 @@ import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
 import {pick} from '@react-native-documents/picker';
 import storage from '@react-native-firebase/storage';
+import RNFS from 'react-native-fs';
 import Video from 'react-native-video';
 
 type Post = {
@@ -370,21 +371,38 @@ function CreatePostScreen({navigation, route}: any) {
   const MAX_POST_LENGTH = 280;
   // Remove file.io, use Firebase Storage
 
-  const uploadAttachment = async (file: any) => {
-    console.log('Uploading attachment:', file.name, file.uri);
-    // Upload to Firebase Storage
-    const ext = file.name?.split('.').pop() || 'mp4';
-    const ref = storage().ref(`casts/${Date.now()}_${file.name}`);
-    await ref.putFile(file.uri);
-    const url = await ref.getDownloadURL();
-    console.log('Upload successful, URL:', url);
-    return url;
+  const uploadAttachment = async (file: any, castId: number) => {
+    const filename = file.name || 'upload';
+    const storagePath = `casts/${castId}/media/${Date.now()}_${filename}`;
+    console.log('Uploading attachment to storage path:', storagePath);
+    try {
+      const ref = storage().ref(storagePath);
+      // Prefer the copied file path from the picker to avoid scoped-storage permission errors.
+      let uri = file.fileCopyUri || file.uri;
+      if (!uri) {
+        throw new Error('No file URI returned from picker. Please select the file again.');
+      }
+      if (uri.startsWith('content://')) {
+        const tempPath = RNFS.TemporaryDirectoryPath + '/' + filename;
+        await RNFS.copyFile(uri, tempPath);
+        uri = tempPath;
+      }
+      await ref.putFile(uri);
+      const url = await ref.getDownloadURL();
+      console.log('Upload successful, URL:', url);
+      return url;
+    } catch (error: any) {
+      console.error('Upload error:', error);
+      alert('Upload error: ' + (error?.message || 'Unable to read the selected file. Please reselect using the file picker.'));
+      throw error;
+    }
   };
 
   const handleFilePick = async () => {
     try {
       const res = await pick({
         type: ['image/*', 'video/*', 'application/pdf'],
+        copyTo: 'cachesDirectory', // ensure we get a readable fileCopyUri for scoped storage
       });
       if (res && res.length > 0) {
         setAttachment(res[0]);
@@ -399,8 +417,9 @@ function CreatePostScreen({navigation, route}: any) {
     setIsUploading(true);
 
     try {
+      const castId = Date.now();
       const newPost: Post = {
-        id: Date.now(),
+        id: castId,
         user: currentUser.name || 'You',
         content: postContent,
         likes: 0,
@@ -410,7 +429,7 @@ function CreatePostScreen({navigation, route}: any) {
 
       if (attachment) {
         try {
-          const remoteUrl = await uploadAttachment(attachment);
+          const remoteUrl = await uploadAttachment(attachment, castId);
           const mime = attachment.type || '';
           const name = attachment.name || '';
           if (mime.startsWith('image/')) {
