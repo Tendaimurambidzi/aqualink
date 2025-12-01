@@ -423,6 +423,7 @@ function CreatePostScreen({navigation, route}: any) {
           }
         } catch (error) {
           console.error('Upload failed, using local URI:', error);
+          alert('Upload failed, using local file. Check Firebase config.');
           const fallbackUrl = attachment.uri;
           const mime = attachment.type || '';
           const name = attachment.name || '';
