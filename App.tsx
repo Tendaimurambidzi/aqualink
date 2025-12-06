@@ -424,29 +424,56 @@ function CreatePostScreen({navigation, route}: any) {
   // Remove file.io, use Firebase Storage
 
   const uploadAttachment = async (file: any, castId: number) => {
-    const filename = file.name || 'upload';
-    const storagePath = `casts/${castId}/media/${Date.now()}_${filename}`;
+    const filename = file.name || `upload_${Date.now()}`;
+    const storagePath = `casts/${castId}/media/${filename}`;
     console.log('Uploading attachment to storage path:', storagePath);
+    console.log('File info:', { uri: file.uri, fileCopyUri: file.fileCopyUri, type: file.type, name: file.name });
+
     try {
       const ref = storage().ref(storagePath);
-      // Prefer the copied file path from the picker to avoid scoped-storage permission errors.
-      let uri = file.fileCopyUri || file.uri;
-      if (!uri) {
-        throw new Error('No file URI returned from picker. Please select the file again.');
+      
+      // Get the file path to upload
+      let filePath = file.fileCopyUri || file.uri;
+      
+      if (!filePath) {
+        throw new Error('No file URI available. Please select the file again.');
       }
-      if (uri.startsWith('content://')) {
-        const tempPath = RNFS.TemporaryDirectoryPath + '/' + filename;
-        await RNFS.copyFile(uri, tempPath);
-        uri = tempPath;
+
+      console.log('Using file path for upload:', filePath);
+
+      // If it's a content:// URI, copy to temp directory first
+      if (filePath.startsWith('content://')) {
+        const tempPath = `${RNFS.TemporaryDirectoryPath}/${filename}`;
+        console.log('Copying content URI to temp path:', tempPath);
+        await RNFS.copyFile(filePath, tempPath);
+        filePath = tempPath;
+        console.log('Copied to temp path successfully');
       }
-      await ref.putFile(uri);
-      const url = await ref.getDownloadURL();
-      console.log('Upload successful, URL:', url);
-      return url;
+
+      // Ensure the file exists before uploading
+      const fileExists = await RNFS.exists(filePath);
+      if (!fileExists) {
+        throw new Error('File does not exist at path: ' + filePath);
+      }
+
+      console.log('File exists, starting upload...');
+      const uploadTask = ref.putFile(filePath);
+      
+      // Monitor upload progress
+      uploadTask.on('state_changed', (snapshot) => {
+        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+        console.log('Upload progress:', progress + '%');
+      });
+
+      await uploadTask;
+      const downloadUrl = await ref.getDownloadURL();
+      console.log('Upload successful, download URL:', downloadUrl);
+      return downloadUrl;
     } catch (error: any) {
-      console.error('Upload error:', error);
-      alert('Upload error: ' + (error?.message || 'Unable to read the selected file. Please reselect using the file picker.'));
-      throw error;
+      console.error('Upload error details:', error);
+      console.error('Error code:', error.code);
+      console.error('Error message:', error.message);
+      throw new Error('Upload failed: ' + (error.message || 'Unknown error'));
     }
   };
 
@@ -479,42 +506,31 @@ function CreatePostScreen({navigation, route}: any) {
       };
 
       if (attachment) {
-        try {
-          const remoteUrl = await uploadAttachment(attachment, castId);
-          const mime = attachment.type || '';
-          const name = attachment.name || '';
-          if (mime.startsWith('image/')) {
-            postData.imageUrl = remoteUrl;
-          } else if (mime.startsWith('video/')) {
-            postData.videoUrl = remoteUrl;
-          } else {
-            postData.documentUrl = remoteUrl;
-            postData.documentName = name || 'Attached Document';
-          }
-        } catch (error) {
-          console.error('Upload failed, using local URI:', error);
-          alert('Upload failed, using local file. Check Firebase config.');
-          const fallbackUrl = attachment.uri;
-          const mime = attachment.type || '';
-          const name = attachment.name || '';
-          if (mime.startsWith('image/')) {
-            postData.imageUrl = fallbackUrl;
-          } else if (mime.startsWith('video/')) {
-            postData.videoUrl = fallbackUrl;
-          } else {
-            postData.documentUrl = fallbackUrl;
-            postData.documentName = name || 'Attached Document';
-          }
+        console.log('Starting media upload...');
+        const remoteUrl = await uploadAttachment(attachment, castId);
+        const mime = attachment.type || '';
+        const name = attachment.name || '';
+        if (mime.startsWith('image/')) {
+          postData.imageUrl = remoteUrl;
+        } else if (mime.startsWith('video/')) {
+          postData.videoUrl = remoteUrl;
+        } else {
+          postData.documentUrl = remoteUrl;
+          postData.documentName = name || 'Attached Document';
         }
+        console.log('Media upload successful, URL:', remoteUrl);
       }
 
+      console.log('Saving post to Firestore...');
       await firestore().collection('posts').add(postData);
+      console.log('Post saved successfully');
 
       navigation.goBack();
       setPostContent('');
       setAttachment(null);
-    } catch (error) {
-      console.error('Error uploading attachment:', error);
+    } catch (error: any) {
+      console.error('Error creating post:', error);
+      alert('Failed to create post: ' + (error.message || 'Unknown error. Please try again.'));
     } finally {
       setIsUploading(false);
     }
