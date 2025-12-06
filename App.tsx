@@ -21,6 +21,7 @@ import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
 import {pick} from '@react-native-documents/picker';
 import storage from '@react-native-firebase/storage';
+import firestore from '@react-native-firebase/firestore';
 import RNFS from 'react-native-fs';
 import Video from 'react-native-video';
 import FastImage from 'react-native-fast-image';
@@ -36,6 +37,7 @@ type Post = {
   videoUrl?: string;
   documentUrl?: string;
   documentName?: string;
+  timestamp?: string;
 };
 
 const Stack = createNativeStackNavigator();
@@ -106,6 +108,33 @@ function FeedScreen({navigation, route}: any) {
   const [activePostForComment, setActivePostForComment] = useState<{postId: number} | null>(null);
   const [activeTab, setActiveTab] = useState('Tide');
 
+  // Load posts from Firestore
+  useEffect(() => {
+    const unsubscribe = firestore()
+      .collection('posts')
+      .orderBy('createdAt', 'desc')
+      .onSnapshot(snapshot => {
+        const firestorePosts: Post[] = snapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            user: data.user,
+            content: data.content,
+            likes: data.likes || 0,
+            comments: data.comments || [],
+            liked: false, // Local state
+            imageUrl: data.imageUrl,
+            videoUrl: data.videoUrl,
+            documentUrl: data.documentUrl,
+            documentName: data.documentName,
+            timestamp: data.createdAt?.toDate()?.toISOString(),
+          };
+        });
+        setPosts(firestorePosts);
+      });
+    return unsubscribe;
+  }, []);
+
   // Add new post from CreatePostScreen (instant UI update)
   useEffect(() => {
     if (route.params?.newPost) {
@@ -154,6 +183,20 @@ function FeedScreen({navigation, route}: any) {
     if (action) action();
   };
 
+  const getRelativeTime = (timestamp: string) => {
+    const now = new Date();
+    const postTime = new Date(timestamp);
+    const diffMs = now.getTime() - postTime.getTime();
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+    if (diffMins < 1) return 'just now';
+    if (diffMins < 60) return `${diffMins} min ago`;
+    if (diffHours < 24) return `${diffHours} hr ago`;
+    return `${diffDays} days ago`;
+  };
+
   const renderPost = useCallback(({item: post}: {item: Post}) => (
     <TouchableOpacity
       activeOpacity={0.9}
@@ -167,7 +210,12 @@ function FeedScreen({navigation, route}: any) {
         <View style={styles.cardTopSection}>
           <View style={styles.cardHeader}>
             <Image source={{uri: avatars[post.user] || avatars['Alice']}} style={styles.avatar} />
-            <Text style={[styles.username, styles.textWhite]}>{post.user}</Text>
+            <View style={{flex: 1}}>
+              <Text style={[styles.username, styles.textWhite]}>{post.user}</Text>
+              {post.timestamp && (
+                <Text style={[styles.timestamp, styles.textWhite]}>{getRelativeTime(post.timestamp)}</Text>
+              )}
+            </View>
           </View>
           <Text style={[styles.content, styles.textWhite]}>{post.content}</Text>
           {post.imageUrl && <FastImage source={{uri: post.imageUrl}} style={styles.postImage} resizeMode={FastImage.resizeMode.cover} />}
@@ -422,13 +470,12 @@ function CreatePostScreen({navigation, route}: any) {
 
     try {
       const castId = Date.now();
-      const newPost: Post = {
-        id: castId,
+      const postData: any = {
         user: currentUser.name || 'You',
         content: postContent,
         likes: 0,
         comments: [],
-        liked: false,
+        createdAt: firestore.FieldValue.serverTimestamp(),
       };
 
       if (attachment) {
@@ -437,12 +484,12 @@ function CreatePostScreen({navigation, route}: any) {
           const mime = attachment.type || '';
           const name = attachment.name || '';
           if (mime.startsWith('image/')) {
-            newPost.imageUrl = remoteUrl;
+            postData.imageUrl = remoteUrl;
           } else if (mime.startsWith('video/')) {
-            newPost.videoUrl = remoteUrl;
+            postData.videoUrl = remoteUrl;
           } else {
-            newPost.documentUrl = remoteUrl;
-            newPost.documentName = name || 'Attached Document';
+            postData.documentUrl = remoteUrl;
+            postData.documentName = name || 'Attached Document';
           }
         } catch (error) {
           console.error('Upload failed, using local URI:', error);
@@ -451,17 +498,19 @@ function CreatePostScreen({navigation, route}: any) {
           const mime = attachment.type || '';
           const name = attachment.name || '';
           if (mime.startsWith('image/')) {
-            newPost.imageUrl = fallbackUrl;
+            postData.imageUrl = fallbackUrl;
           } else if (mime.startsWith('video/')) {
-            newPost.videoUrl = fallbackUrl;
+            postData.videoUrl = fallbackUrl;
           } else {
-            newPost.documentUrl = fallbackUrl;
-            newPost.documentName = name || 'Attached Document';
+            postData.documentUrl = fallbackUrl;
+            postData.documentName = name || 'Attached Document';
           }
         }
       }
 
-      navigation.navigate({name: 'Feed', params: {newPost}, merge: true});
+      await firestore().collection('posts').add(postData);
+
+      navigation.goBack();
       setPostContent('');
       setAttachment(null);
     } catch (error) {
@@ -558,6 +607,11 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 16,
     color: '#222',
+  },
+  timestamp: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 2,
   },
   textWhite: {
     color: '#fff',
